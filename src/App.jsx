@@ -188,7 +188,7 @@ function App() {
                 {options.map((opt, i) => (
                   <button
                     key={i}
-                    disabled={!!selected}
+                    
                     onClick={() => submitAnswer(opt)}
                     className={`option-button ${
                       selected === opt ? "selected" : ""
