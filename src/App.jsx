@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
+import { useEffect, useState, useRef } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { IoCopy } from "react-icons/io5";
+import { TbCopyCheckFilled } from "react-icons/tb";
+import { MdAddHomeWork } from "react-icons/md";
+import { SiCaddy } from "react-icons/si";
 
 import socket from "./socket";
 
 function App() {
+  const [mode, setMode] = useState(""); // "", "join", "create"
   const [username, setUsername] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [joined, setJoined] = useState(false);
@@ -14,7 +19,12 @@ function App() {
   const [selected, setSelected] = useState("");
   const [result, setResult] = useState(null);
   const [players, setPlayers] = useState({});
+  const [copied, setCopied] = useState(false);
 
+  const resultRef = useRef(null);
+  const mainContentRef = useRef(null);
+
+  // Timer sync (always from backend)
   useEffect(() => {
     if (time <= 0) return;
     const timer = setInterval(() => {
@@ -24,16 +34,53 @@ function App() {
     return () => clearInterval(timer);
   }, [time]);
 
+  const createRoom = () => {
+    if (!username) return alert("Enter your name");
+    const newRoom = uuidv4().slice(0, 8);
+    setRoomCode(newRoom);
+    socket.emit("join-room", { roomCode: newRoom, username });
+    setJoined(true);
+  };
+
   const joinRoom = () => {
-    if (!username || !roomCode) return alert("Enter username & room code");
+    if (!username || !roomCode) return alert("Enter name & room code");
     socket.emit("join-room", { roomCode, username });
     setJoined(true);
   };
 
+  const copyRoomCode = async () => {
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert("Failed to copy!");
+    }
+  };
+  // Auto-scroll to results when they appear
   useEffect(() => {
-    socket.on("players", (data) => {
-      setPlayers(data);
-    });
+    if (result && resultRef.current) {
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 100);
+    }
+  }, [result]);
+
+  // Auto-scroll to top when question changes
+  useEffect(() => {
+    if (question && mainContentRef.current) {
+      mainContentRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  }, [question]);
+
+  useEffect(() => {
+    socket.on("players", (data) => setPlayers(data));
 
     socket.on("new-question", (data) => {
       setQuestion(data.question);
@@ -43,9 +90,7 @@ function App() {
       setResult(null);
     });
 
-    socket.on("result", (data) => {
-      setResult(data);
-    });
+    socket.on("result", (data) => setResult(data));
 
     return () => {
       socket.off("players");
@@ -55,77 +100,205 @@ function App() {
   }, []);
 
   const submitAnswer = (opt) => {
+    if (selected) setSelected("");
     setSelected(opt);
-    socket.emit("submit-answer", {
-      roomCode,
-      answer: opt
-    });
+    socket.emit("submit-answer", { roomCode, answer: opt });
   };
 
   return (
-    <div className="app">
-      <header className="header">
-        <h1 className="logo">QuizBattle</h1>
-        {joined && (
-          <div className="room-info">
-            <span className="room-badge">Room: {roomCode}</span>
-            <span className="user-badge">{username}</span>
-          </div>
-        )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 font-sans">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-slate-800/90 to-blue-900/90 backdrop-blur-md border-b border-slate-700/30 px-6 py-4 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
+            🧠 QuizBattle Pro
+          </h1>
+
+          {joined && (
+            <div className="flex flex-wrap gap-3">
+              <div className="px-4 py-2 bg-slate-800/50 backdrop-blur-sm rounded-full text-slate-100 font-semibold text-sm border border-slate-700">
+                Room: <span className="font-bold text-cyan-300">{roomCode}</span>
+              </div>
+              <div className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full text-white font-semibold text-sm shadow-lg">
+                👤 {username}
+              </div>
+            </div>
+          )}
+        </div>
       </header>
 
-      <main className="main-content">
-        {!joined ? (
-          <div className="join-container">
-            <div className="card">
-              <h2 className="card-title">Join Quiz Battle</h2>
-              <p className="card-subtitle">Test your knowledge in real-time!</p>
-              
-              <div className="input-group">
-                <label htmlFor="username">Your Name</label>
-                <input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your name"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="input-field"
-                />
-              </div>
+      {/* Main Content */}
+      <main
+        ref={mainContentRef}
+        className="max-w-7xl mx-auto px-4 py-8 overflow-y-auto max-h-[calc(100vh-80px)]"
+      >
+        {/* Mode Selection */}
+        {!mode && !joined && (
+          <div className="max-w-lg mx-auto animate-fade-in">
+            <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 text-center border border-slate-700/50">
+              <h2 className="text-3xl font-bold text-white mb-2">Welcome to QuizBattle Pro</h2>
+              <p className="text-slate-300 mb-8">Challenge your intellect in real-time knowledge battles!</p>
 
-              <div className="input-group">
-                <label htmlFor="roomCode">Room Code</label>
-                <input
-                  id="roomCode"
-                  type="text"
-                  placeholder="Enter room code"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value)}
-                  className="input-field"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Create Room Button */}
+                <button
+                  onClick={() => setMode("create")}
+                  className="group bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-8 rounded-2xl transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl border border-emerald-500/20 hover:border-emerald-400/40 flex flex-col items-center"
+                >
+                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform "><MdAddHomeWork className="text-center"/></div>
+                  <h3 className="text-xl font-bold mb-2">Create Room</h3>
+                  <p className="text-emerald-100 text-sm opacity-90">Start a new challenge session</p>
+                </button>
 
-              <button 
-                onClick={joinRoom}
-                className="btn-primary"
-                disabled={!username || !roomCode}
-              >
-                Join Battle
-              </button>
+                {/* Join Room Button */}
+                <button
+                  onClick={() => setMode("join")}
+                  className="group bg-gradient-to-br from-indigo-600 to-blue-700 text-white p-8 rounded-2xl transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl border border-indigo-500/20 hover:border-indigo-400/40 flex flex-col items-center"
+                >
+                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform"><SiCaddy /></div>
+                  <h3 className="text-xl font-bold mb-2">Join Room</h3>
+                  <p className="text-blue-100 text-sm opacity-90">Enter an existing session</p>
+                </button>
+              </div>
             </div>
           </div>
-        ) : !question ? (
-          <div className="waiting-container">
-            <div className="card">
-              <div className="spinner"></div>
-              <h2 className="waiting-title">Waiting for opponent...</h2>
-              <p className="waiting-subtitle">Share the room code: <strong>{roomCode}</strong></p>
-              
-              <div className="players-list">
-                <h3>Players in Room:</h3>
-                <div className="players-grid">
+        )}
+
+        {/* Create Room Form */}
+        {mode === "create" && !joined && (
+          <div className="max-w-md mx-auto animate-fade-in">
+            <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-slate-700/50">
+              <button
+                onClick={() => setMode("")}
+                className="flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
+              >
+                <span className="text-xl">←</span> Back to Selection
+              </button>
+
+              <h2 className="text-3xl font-bold text-white mb-2">Create New Room</h2>
+              <p className="text-slate-300 mb-8">Start a new challenge session and invite participants!</p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    Your Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter your display name"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500/50 outline-none transition-all duration-300 text-white placeholder-slate-400"
+                  />
+                </div>
+
+                <button
+                  onClick={createRoom}
+                  disabled={!username}
+                  className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 ${!username
+                      ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-emerald-600 to-teal-700 hover:shadow-2xl text-white border border-emerald-500/20"
+                    }`}
+                >
+                  🚀 Create & Start Session
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Join Room Form */}
+        {mode === "join" && !joined && (
+          <div className="max-w-md mx-auto animate-fade-in">
+            <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-slate-700/50">
+              <button
+                onClick={() => setMode("")}
+                className="flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
+              >
+                <span className="text-xl">←</span> Back to Selection
+              </button>
+
+              <h2 className="text-3xl font-bold text-white mb-2">Join Existing Session</h2>
+              <p className="text-slate-300 mb-8">Enter the session code to join the challenge!</p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    Your Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter your display name"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 outline-none transition-all duration-300 text-white placeholder-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    Session Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter session code (e.g., X7B9K2)"
+                    value={roomCode}
+                    onChange={(e) => setRoomCode(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 outline-none transition-all duration-300 font-mono text-center text-lg text-white"
+                  />
+                </div>
+
+                <button
+                  onClick={joinRoom}
+                  disabled={!username || !roomCode}
+                  className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 ${!username || !roomCode
+                      ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-indigo-600 to-blue-700 hover:shadow-2xl text-white border border-indigo-500/20"
+                    }`}
+                >
+                  🔥 Join Challenge
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Waiting Room */}
+        {joined && !question && (
+          <div className="max-w-2xl mx-auto animate-fade-in">
+            <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 text-center border border-slate-700/50">
+              <div className="w-20 h-20 border-4 border-slate-600 border-t-cyan-400 rounded-full animate-spin mx-auto mb-8"></div>
+
+              <h2 className="text-2xl font-bold text-white mb-3">Waiting for participants...</h2>
+              <div className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 border-2 border-slate-700 rounded-xl p-6 mb-8 backdrop-blur-sm">
+                <p className="text-slate-300 mb-3">Share this session code:</p>
+                <div className="flex items-center justify-center gap-4">
+                  <p className="text-4xl font-bold font-mono text-cyan-300 tracking-wider bg-slate-900/50 py-2 px-6 rounded-lg">
+                    {roomCode}
+                  </p>
+                  <button
+                    onClick={copyRoomCode}
+                    className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-sm transition-colors border border-slate-600"
+                  >
+                    {copied ? <TbCopyCheckFilled className="text-emerald-400 size-5"/>
+                      : <IoCopy className="text-slate-300 size-5"/>}
+                  </button>
+                </div>
+                {
+                  copied && <p className="text-sm text-emerald-400 mt-3 font-medium">Code copied to clipboard!</p>
+                }
+                <p className="text-sm text-slate-400 mt-3">Invite others to join this session</p>
+              </div>
+
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-slate-300 mb-4">Participants in Session</h3>
+                <div className="flex flex-wrap gap-3 justify-center">
                   {Object.entries(players).map(([id, name]) => (
-                    <div key={id} className="player-chip">
+                    <div
+                      key={id}
+                      className="bg-gradient-to-r from-slate-800/50 to-slate-900/50 border-2 border-slate-700 rounded-xl px-6 py-3 font-semibold text-slate-100 flex items-center gap-2 transition-all hover:scale-105 hover:border-cyan-500/30"
+                    >
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
                       👤 {name}
                     </div>
                   ))}
@@ -133,153 +306,172 @@ function App() {
               </div>
             </div>
           </div>
-        ) : (
-          <div className="quiz-container">
-            <div className="quiz-header">
-              <div className="timer">
-                ⏱️ Time: <span className="time-count">{time}s</span>
-              </div>
-              <div className="question-counter">Question in progress...</div>
-            </div>
-            <div className="result-section">
-                  {result && (
-                <div className="result-container">
-                  <div className="card result-card">
-                    <div className="result-header">
-                      <h2>🎯 Round Results</h2>
-                      <div className="correct-answer">
-                        Correct Answer: <span className="answer-highlight">{result.correctAnswer}</span>
-                      </div>
-                    </div>
+        )}
 
-                    <div className="scores-section">
-                      <h3 className="scores-title">Leaderboard</h3>
-                      <div className="scores-list">
-                        {Object.keys(result.scores)
-                          .sort((a, b) => result.scores[b] - result.scores[a])
-                          .map((id, index) => (
-                            <div key={id} className="score-item">
-                              <div className="player-rank">
-                                <span className={`rank-badge ${
-                                  index === 0 ? "gold" : 
-                                  index === 1 ? "silver" : 
-                                  index === 2 ? "bronze" : ""
-                                }`}>
-                                  {index + 1}
-                                </span>
-                                <span className="player-name">{result.users[id]}</span>
+        {/* Quiz Interface */}
+        {joined && question && (
+          <div className="space-y-8">
+            {/* Timer Bar */}
+            <div className="bg-gradient-to-r from-slate-800/70 to-blue-900/70 backdrop-blur-md rounded-2xl p-6 flex justify-between items-center animate-slide-down border border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="bg-cyan-500/20 p-3 rounded-xl border border-cyan-500/30">
+                  <span className="text-2xl text-cyan-300">⏱️</span>
+                </div>
+                <div>
+                  <div className="text-slate-300 text-sm font-semibold">TIME REMAINING</div>
+                  <div className={`text-3xl font-bold ${time <= 10 ? 'text-red-400 animate-pulse' : 'text-cyan-300'}`}>
+                    {time}s
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <div className="text-slate-300 text-sm font-semibold">SESSION</div>
+                <div className="text-cyan-200 font-bold font-mono">{roomCode}</div>
+              </div>
+            </div>
+
+            {/* Question Card */}
+            <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 animate-fade-in border border-slate-700/50">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-2 h-8 bg-gradient-to-b from-cyan-400 to-blue-400 rounded-full"></div>
+                <span className="text-sm font-semibold text-cyan-300 uppercase tracking-wide">Question</span>
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-8 leading-relaxed">
+                {question}
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {options.map((opt, i) => {
+                  const isSelected = selected === opt;
+                  const isCorrect = result && opt === result.correctAnswer;
+
+                  return (
+                    <button
+                      key={i}
+                      
+                      onClick={() => submitAnswer(opt)}
+                      className={`
+                        relative p-6 rounded-xl border-2 transition-all duration-300 
+                        transform hover:-translate-y-1 disabled:cursor-not-allowed
+                        ${isSelected
+                          ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-500/50 shadow-2xl scale-[1.02]' 
+                          : isCorrect && result
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-500/50'
+                            : 'bg-slate-800/50 border-slate-700 hover:border-cyan-500/50 hover:shadow-lg text-white'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`
+                          w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg border
+                          ${isSelected || isCorrect 
+                            ? 'bg-white/20 text-white border-emerald-400' 
+                            : 'bg-slate-700/50 text-cyan-300 border-slate-600'
+                          }
+                        `}>
+                          {String.fromCharCode(65 + i)}
+                        </div>
+                        <div className="flex-1 text-left font-medium text-lg">
+                          {opt}
+                        </div>
+                        {isSelected && (
+                          <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold">
+                            ✓
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Results Card - with ref for auto-scroll */}
+            {result && (
+              <div
+                ref={resultRef}
+                className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 animate-fade-in border-4 border-amber-500/30"
+              >
+                {/* Scroll indicator */}
+                <div className="flex justify-center mb-4 animate-bounce">
+                  <div className="text-amber-400 text-2xl">📊</div>
+                </div>
+
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-white mb-4 flex items-center justify-center gap-3">
+                    🏆 Round Results
+                  </h2>
+                  <div className="inline-block bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-6 py-3 rounded-full font-bold shadow-lg border border-emerald-400/30">
+                    ✅ Correct Answer: <span className="ml-2 bg-white text-emerald-700 px-4 py-1 rounded-full font-mono font-bold">{result.correctAnswer}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-slate-300 mb-6 text-center">
+                    🏅 Leaderboard
+                  </h3>
+
+                  <div className="space-y-4">
+                    {Object.keys(result.scores)
+                      .sort((a, b) => result.scores[b] - result.scores[a])
+                      .map((id, index) => (
+                        <div
+                          key={id}
+                          className="bg-gradient-to-r from-slate-800/50 to-slate-900/50 border-2 border-slate-700 rounded-xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-x-1 hover:border-cyan-500/30"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                              <div className={`
+                                w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg border-2
+                                ${index === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white border-amber-400 animate-pulse' :
+                                  index === 1 ? 'bg-gradient-to-br from-slate-400 to-slate-600 text-white border-slate-400' :
+                                    index === 2 ? 'bg-gradient-to-br from-amber-700 to-amber-900 text-white border-amber-700' :
+                                      'bg-slate-700 text-slate-300 border-slate-600'}
+                              `}>
+                                {index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
                               </div>
-                              <div className="player-score">
-                                {result.scores[id]} pts
+                              <div>
+                                <div className="text-xl font-bold text-white">
+                                  {result.users[id]}
+                                </div>
+                                <div className="text-slate-400 text-sm">
+                                  {index === 0 ? 'Champion' :
+                                    index === 1 ? 'Runner-up' :
+                                      index === 2 ? 'Third Place' : 'Participant'}
+                                </div>
                               </div>
                             </div>
-                          ))}
-                      </div>
+
+                            <div className="text-right">
+                              <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                                {result.scores[id]} pts
+                              </div>
+                              <div className="text-sm text-slate-400">
+                                Total Score
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+
+                  {/* Next round indicator */}
+                  <div className="mt-8 pt-6 border-t border-slate-700 text-center">
+                    <div className="text-slate-400 font-semibold animate-pulse">
+                      ⏳ Next challenge starting soon...
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-
-            <div className="card question-card">
-              <h2 className="question-text">{question}</h2>
-              
-              <div className="options-grid">
-                {options.map((opt, i) => (
-                  <button
-                    key={i}
-                    
-                    onClick={() => submitAnswer(opt)}
-                    className={`option-button ${
-                      selected === opt ? "selected" : ""
-                    } ${result && opt === result.correctAnswer ? "correct" : ""}`}
-                  >
-                    <span className="option-letter">
-                      {String.fromCharCode(65 + i)}
-                    </span>
-                    <span className="option-text">{opt}</span>
-                    {selected === opt && (
-                      <span className="option-status">✓</span>
-                    )}
-                  </button>
-                ))}
               </div>
-            </div>
+            )}
           </div>
         )}
-
-      
       </main>
 
-      <style jsx>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        .app {
-          min-height: 100vh;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .header {
-          padding: 1.5rem 2rem;
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .logo {
-          color: white;
-          font-size: 2rem;
-          font-weight: 800;
-          background: linear-gradient(45deg, #ff6b6b, #feca57);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
-
-        .room-info {
-          display: flex;
-          gap: 1rem;
-        }
-
-        .room-badge, .user-badge {
-          padding: 0.5rem 1rem;
-          border-radius: 20px;
-          font-weight: 600;
-          font-size: 0.9rem;
-        }
-
-        .room-badge {
-          background: rgba(255, 255, 255, 0.2);
-          color: white;
-        }
-
-        .user-badge {
-          background: #10b981;
-          color: white;
-        }
-
-        .main-content {
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 2rem;
-        }
-
-        .card {
-          background: white;
-          border-radius: 16px;
-          padding: 2rem;
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-          animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
+      {/* Custom Animations */}
+      <style jsx global>{`
+        @keyframes fade-in {
           from {
             opacity: 0;
             transform: translateY(20px);
@@ -289,350 +481,72 @@ function App() {
             transform: translateY(0);
           }
         }
-
-        .card-title {
-          font-size: 2rem;
-          color: #333;
-          margin-bottom: 0.5rem;
-        }
-
-        .card-subtitle {
-          color: #666;
-          margin-bottom: 2rem;
-        }
-
-        .input-group {
-          margin-bottom: 1.5rem;
-        }
-
-        .input-group label {
-          display: block;
-          color: #555;
-          font-weight: 600;
-          margin-bottom: 0.5rem;
-        }
-
-        .input-field {
-          width: 100%;
-          padding: 1rem;
-          border: 2px solid #e2e8f0;
-          border-radius: 10px;
-          font-size: 1rem;
-          transition: all 0.3s;
-        }
-
-        .input-field:focus {
-          outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn-primary {
-          width: 100%;
-          padding: 1rem;
-          background: linear-gradient(45deg, #667eea, #764ba2);
-          color: white;
-          border: none;
-          border-radius: 10px;
-          font-size: 1.1rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-primary:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .waiting-container {
-          text-align: center;
-        }
-
-        .spinner {
-          width: 60px;
-          height: 60px;
-          border: 4px solid #e2e8f0;
-          border-top-color: #667eea;
-          border-radius: 50%;
-          margin: 0 auto 2rem;
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
+        
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
           to {
-            transform: rotate(360deg);
+            opacity: 1;
+            transform: translateY(0);
           }
         }
-
-        .waiting-title {
-          font-size: 1.8rem;
-          color: #333;
-          margin-bottom: 1rem;
+        
+        @keyframes subtle-glow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(6, 182, 212, 0.2);
+          }
         }
-
-        .waiting-subtitle {
-          color: #666;
-          margin-bottom: 2rem;
+        
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out;
         }
-
-        .players-list {
-          margin-top: 2rem;
-          text-align: left;
+        
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out;
         }
-
-        .players-list h3 {
-          color: #555;
-          margin-bottom: 1rem;
+        
+        .animate-subtle-glow {
+          animation: subtle-glow 3s ease-in-out infinite;
         }
-
-        .players-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-          gap: 1rem;
+        
+        /* Smooth scroll behavior */
+        html {
+          scroll-behavior: smooth;
         }
-
-        .player-chip {
-          background: #f8fafc;
-          padding: 0.8rem;
+        
+        /* Custom scrollbar */
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: rgba(30, 41, 59, 0.3);
           border-radius: 10px;
-          border: 2px solid #e2e8f0;
-          font-weight: 600;
-          color: #4a5568;
         }
-
-        .quiz-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          background: rgba(255, 255, 255, 0.9);
-          padding: 1rem 1.5rem;
-          border-radius: 12px;
-          margin-bottom: 2rem;
-          backdrop-filter: blur(10px);
-        }
-
-        .timer {
-          font-size: 1.2rem;
-          font-weight: 600;
-          color: #333;
-        }
-
-        .time-count {
-          color: #ef4444;
-          animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
-
-        .question-counter {
-          color: #666;
-          font-weight: 500;
-        }
-
-        .question-card {
-          text-align: center;
-        }
-
-        .question-text {
-          font-size: 1.5rem;
-          color: #333;
-          margin-bottom: 2rem;
-          line-height: 1.4;
-        }
-
-        .options-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 1rem;
-        }
-
-        .option-button {
-          padding: 1.5rem;
-          background: #f8fafc;
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 1rem;
-          color: #4a5568;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          transition: all 0.3s;
-          position: relative;
-        }
-
-        .option-button:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-          border-color: #667eea;
-          background: white;
-        }
-
-        .option-button:disabled {
-          cursor: not-allowed;
-        }
-
-        .option-button.selected {
-          background: linear-gradient(45deg, #10b981, #34d399);
-          color: white;
-          border-color: #10b981;
-        }
-
-        .option-button.correct {
-          background: linear-gradient(45deg, #10b981, #34d399);
-          color: white;
-          border-color: #10b981;
-        }
-
-        .option-letter {
-          width: 36px;
-          height: 36px;
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: 1.1rem;
-        }
-
-        .option-text {
-          flex: 1;
-          text-align: left;
-        }
-
-        .option-status {
-          font-size: 1.5rem;
-          font-weight: bold;
-        }
-
-        .result-container {
-          margin-top: 2rem;
-        }
-
-        .result-header {
-          text-align: center;
-          margin-bottom: 2rem;
-        }
-
-        .correct-answer {
-          font-size: 1.1rem;
-          color: #666;
-          margin-top: 1rem;
-        }
-
-        .answer-highlight {
-          background: #10b981;
-          color: white;
-          padding: 0.5rem 1rem;
-          border-radius: 20px;
-          font-weight: 600;
-        }
-
-        .scores-section {
-          margin-top: 2rem;
-        }
-
-        .scores-title {
-          color: #333;
-          margin-bottom: 1.5rem;
-          font-size: 1.3rem;
-          text-align: center;
-        }
-
-        .scores-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .score-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem;
-          background: #f8fafc;
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #06b6d4, #3b82f6);
           border-radius: 10px;
-          transition: transform 0.2s;
         }
-
-        .score-item:hover {
-          transform: translateX(5px);
-          background: white;
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, #0891b2, #2563eb);
         }
-
-        .player-rank {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
+        
+        /* Smooth transitions */
+        * {
+          transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
         }
-
-        .rank-badge {
-          width: 36px;
-          height: 36px;
-          background: #e2e8f0;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          color: #4a5568;
-        }
-
-        .rank-badge.gold {
-          background: linear-gradient(45deg, #fbbf24, #f59e0b);
+        
+        /* Selection styles */
+        ::selection {
+          background-color: rgba(6, 182, 212, 0.3);
           color: white;
-        }
-
-        .rank-badge.silver {
-          background: linear-gradient(45deg, #94a3b8, #64748b);
-          color: white;
-        }
-
-        .rank-badge.bronze {
-          background: linear-gradient(45deg, #d97706, #b45309);
-          color: white;
-        }
-
-        .player-name {
-          font-weight: 600;
-          color: #333;
-          font-size: 1.1rem;
-        }
-
-        .player-score {
-          font-size: 1.2rem;
-          font-weight: 700;
-          color: #667eea;
-        }
-
-        @media (max-width: 768px) {
-          .header {
-            flex-direction: column;
-            gap: 1rem;
-          }
-
-          .options-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .main-content {
-            padding: 1rem;
-          }
-
-          .card {
-            padding: 1.5rem;
-          }
         }
       `}</style>
     </div>
