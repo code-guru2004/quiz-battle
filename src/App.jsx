@@ -16,6 +16,7 @@ function App() {
   const [question, setQuestion] = useState(null);
   const [options, setOptions] = useState([]);
   const [time, setTime] = useState(0);
+  const [newQuestionTime, setNewQuestionTime] = useState(0);
   const [selected, setSelected] = useState("");
   const [result, setResult] = useState(null);
   const [players, setPlayers] = useState({});
@@ -33,6 +34,15 @@ function App() {
 
     return () => clearInterval(timer);
   }, [time]);
+
+  useEffect(() => {
+    if (newQuestionTime <= 0) return;
+    const timer = setInterval(() => {
+      setNewQuestionTime((t) => t - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [newQuestionTime]);
 
   const createRoom = () => {
     if (!username) return alert("Enter your name");
@@ -83,6 +93,8 @@ function App() {
     socket.on("players", (data) => setPlayers(data));
 
     socket.on("new-question", (data) => {
+      console.log(data);
+
       setQuestion(data.question);
       setOptions(data.options);
       setTime(data.time);
@@ -90,7 +102,12 @@ function App() {
       setResult(null);
     });
 
-    socket.on("result", (data) => setResult(data));
+    socket.on("result", (data) => {
+      console.log(data);
+
+      setResult(data)
+      setNewQuestionTime(data.time || 5);
+    });
 
     return () => {
       socket.off("players");
@@ -145,7 +162,7 @@ function App() {
                   onClick={() => setMode("create")}
                   className="group bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-8 rounded-2xl transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl border border-emerald-500/20 hover:border-emerald-400/40 flex flex-col items-center"
                 >
-                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform "><MdAddHomeWork className="text-center"/></div>
+                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform "><MdAddHomeWork className="text-center" /></div>
                   <h3 className="text-xl font-bold mb-2">Create Room</h3>
                   <p className="text-emerald-100 text-sm opacity-90">Start a new challenge session</p>
                 </button>
@@ -196,8 +213,8 @@ function App() {
                   onClick={createRoom}
                   disabled={!username}
                   className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 ${!username
-                      ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-emerald-600 to-teal-700 hover:shadow-2xl text-white border border-emerald-500/20"
+                    ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-emerald-600 to-teal-700 hover:shadow-2xl text-white border border-emerald-500/20"
                     }`}
                 >
                   🚀 Create & Start Session
@@ -252,8 +269,8 @@ function App() {
                   onClick={joinRoom}
                   disabled={!username || !roomCode}
                   className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 ${!username || !roomCode
-                      ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-indigo-600 to-blue-700 hover:shadow-2xl text-white border border-indigo-500/20"
+                    ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-indigo-600 to-blue-700 hover:shadow-2xl text-white border border-indigo-500/20"
                     }`}
                 >
                   🔥 Join Challenge
@@ -280,8 +297,8 @@ function App() {
                     onClick={copyRoomCode}
                     className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-sm transition-colors border border-slate-600"
                   >
-                    {copied ? <TbCopyCheckFilled className="text-emerald-400 size-5"/>
-                      : <IoCopy className="text-slate-300 size-5"/>}
+                    {copied ? <TbCopyCheckFilled className="text-emerald-400 size-5" />
+                      : <IoCopy className="text-slate-300 size-5" />}
                   </button>
                 </div>
                 {
@@ -349,13 +366,13 @@ function App() {
                   return (
                     <button
                       key={i}
-                      
+
                       onClick={() => submitAnswer(opt)}
                       className={`
                         relative p-6 rounded-xl border-2 transition-all duration-300 
                         transform hover:-translate-y-1 disabled:cursor-not-allowed
                         ${isSelected
-                          ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-500/50 shadow-2xl scale-[1.02]' 
+                          ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-500/50 shadow-2xl scale-[1.02]'
                           : isCorrect && result
                             ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-500/50'
                             : 'bg-slate-800/50 border-slate-700 hover:border-cyan-500/50 hover:shadow-lg text-white'
@@ -365,8 +382,8 @@ function App() {
                       <div className="flex items-center gap-4">
                         <div className={`
                           w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg border
-                          ${isSelected || isCorrect 
-                            ? 'bg-white/20 text-white border-emerald-400' 
+                          ${isSelected || isCorrect
+                            ? 'bg-white/20 text-white border-emerald-400'
                             : 'bg-slate-700/50 text-cyan-300 border-slate-600'
                           }
                         `}>
@@ -391,64 +408,163 @@ function App() {
             {result && (
               <div
                 ref={resultRef}
-                className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 animate-fade-in border-4 border-amber-500/30"
+                className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-lg rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8 animate-fade-in border-4 border-amber-500/30 overflow-hidden"
               >
-                {/* Scroll indicator */}
-                <div className="flex justify-center mb-4 animate-bounce">
-                  <div className="text-amber-400 text-2xl">📊</div>
-                </div>
+                {/* Top decorative line */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
 
-                <div className="text-center mb-8">
-                  <h2 className="text-3xl font-bold text-white mb-4 flex items-center justify-center gap-3">
-                    🏆 Round Results
-                  </h2>
-                  <div className="inline-block bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-6 py-3 rounded-full font-bold shadow-lg border border-emerald-400/30">
-                    ✅ Correct Answer: <span className="ml-2 bg-white text-emerald-700 px-4 py-1 rounded-full font-mono font-bold">{result.correctAnswer}</span>
+                {/* Scroll indicator - refined */}
+                <div className="flex justify-center mb-4 sm:mb-6 animate-bounce">
+                  <div className="text-amber-400 text-3xl bg-gradient-to-br from-slate-800/80 to-slate-900/80 p-3 rounded-2xl border border-amber-500/20 shadow-lg">
+                    📊
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h3 className="text-xl font-bold text-slate-300 mb-6 text-center">
-                    🏅 Leaderboard
-                  </h3>
+                {/* Header - refined with better spacing */}
+                <div className="text-center mb-6 sm:mb-8">
+                  <div className="inline-flex items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6 px-4 py-2 sm:px-6 sm:py-3 rounded-full bg-gradient-to-r from-slate-800/60 to-slate-900/60 border border-slate-700/50 shadow-inner">
+                    <span className="text-amber-400 text-2xl sm:text-3xl">🏆</span>
+                    <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight">
+                      Round Results
+                    </h2>
+                  </div>
 
-                  <div className="space-y-4">
+                  {/* Correct Answer - refined */}
+                  <div className="inline-flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 bg-gradient-to-r from-emerald-600/90 to-teal-700/90 text-white px-5 py-3 sm:px-7 sm:py-4 rounded-xl font-bold shadow-lg border border-emerald-400/30 relative overflow-hidden">
+                    {/* Subtle pattern */}
+                    <div className="absolute inset-0 opacity-5">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.1)_1px,transparent_0)] bg-[size:20px_20px]"></div>
+                    </div>
+
+                    <div className="flex items-center gap-2 z-10">
+                      <div className="w-8 h-8 bg-emerald-400/20 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-300">✓</span>
+                      </div>
+                      <span className="text-sm sm:text-base font-semibold text-emerald-100">Correct Answer:</span>
+                    </div>
+                    <span className="bg-white/95 text-emerald-800 px-4 py-2 rounded-lg font-mono font-bold text-base sm:text-lg shadow-inner border border-emerald-300/30 z-10">
+                      {result.correctAnswer}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Leaderboard Section */}
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Section Header */}
+                  <div className="relative flex items-center justify-center mb-2 sm:mb-4">
+                    <div className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
+                    <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 px-4 py-2 rounded-lg border border-slate-700/50 shadow-sm">
+                      <h3 className="text-base sm:text-xl font-bold text-slate-300 flex items-center gap-2">
+                        <span className="text-amber-400">🏅</span>
+                        Leaderboard
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Leaderboard Items */}
+                  <div className="space-y-3 sm:space-y-4 max-h-[400px] sm:max-h-[500px] overflow-y-auto pr-1 sm:pr-2">
                     {Object.keys(result.scores)
                       .sort((a, b) => result.scores[b] - result.scores[a])
                       .map((id, index) => (
                         <div
                           key={id}
-                          className="bg-gradient-to-r from-slate-800/50 to-slate-900/50 border-2 border-slate-700 rounded-xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-x-1 hover:border-cyan-500/30"
+                          className="group bg-gradient-to-r from-slate-800/50 to-slate-900/50 border-2 border-slate-700 rounded-xl p-4 sm:p-6 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 hover:border-cyan-500/30"
                         >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-4">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            {/* Left Column - Player Info */}
+                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                              {/* Rank Badge - refined */}
                               <div className={`
-                                w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg border-2
-                                ${index === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white border-amber-400 animate-pulse' :
-                                  index === 1 ? 'bg-gradient-to-br from-slate-400 to-slate-600 text-white border-slate-400' :
-                                    index === 2 ? 'bg-gradient-to-br from-amber-700 to-amber-900 text-white border-amber-700' :
-                                      'bg-slate-700 text-slate-300 border-slate-600'}
-                              `}>
-                                {index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                    relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-full flex items-center justify-center font-bold text-lg sm:text-xl shadow-lg border-2
+                    ${index === 0
+                                  ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white border-amber-400 animate-pulse'
+                                  : index === 1
+                                    ? 'bg-gradient-to-br from-slate-400 to-slate-600 text-white border-slate-400'
+                                    : index === 2
+                                      ? 'bg-gradient-to-br from-amber-700 to-amber-900 text-white border-amber-700'
+                                      : 'bg-slate-700 text-slate-300 border-slate-600'
+                                }
+                  `}>
+                                {/* Subtle glow */}
+                                <div className={`absolute inset-0 rounded-full opacity-30 blur-sm ${index === 0 ? 'bg-amber-400' :
+                                    index === 1 ? 'bg-slate-400' :
+                                      index === 2 ? 'bg-amber-600' : 'bg-slate-500'
+                                  }`}></div>
+                                <span className="relative z-10">
+                                  {index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                                </span>
                               </div>
-                              <div>
-                                <div className="text-xl font-bold text-white">
-                                  {result.users[id]}
+
+                              {/* Player Details - refined spacing */}
+                              <div className="flex-1 min-w-0">
+                                {/* Name and Status */}
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-2">
+                                  <h4 className="text-base sm:text-lg md:text-xl font-bold text-white truncate">
+                                    {result.users[id]}
+                                  </h4>
+                                  <div className={`
+                        inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold w-fit
+                        ${index === 0
+                                      ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                                      : index === 1
+                                        ? 'bg-slate-500/10 text-slate-300 border border-slate-500/30'
+                                        : index === 2
+                                          ? 'bg-amber-700/10 text-amber-300 border border-amber-700/30'
+                                          : 'bg-slate-700/50 text-slate-400 border border-slate-600/50'
+                                    }
+                      `}>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
+                                    {index === 0 ? 'Champion' :
+                                      index === 1 ? 'Runner-up' :
+                                        index === 2 ? 'Third Place' : 'Participant'}
+                                  </div>
                                 </div>
-                                <div className="text-slate-400 text-sm">
-                                  {index === 0 ? 'Champion' :
-                                    index === 1 ? 'Runner-up' :
-                                      index === 2 ? 'Third Place' : 'Participant'}
+
+                                {/* Answer Status - improved layout */}
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border ${result.playerResults[id].isCorrect
+                                      ? 'bg-emerald-500/5 text-emerald-300 border-emerald-500/20'
+                                      : 'bg-red-500/5 text-red-300 border-red-500/20'
+                                    }`}>
+                                    <span className={`w-2 h-2 rounded-full ${result.playerResults[id].isCorrect ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                                      }`}></span>
+                                    <span className="font-semibold">
+                                      {result.playerResults[id].isCorrect ? 'Correct' : 'Incorrect'}
+                                    </span>
+                                    <span className="text-xs opacity-80 font-mono bg-slate-800/30 px-1.5 py-0.5 rounded">
+                                      {result.playerResults[id].answer? result.playerResults[id].answer : 'No Answer'}
+                                    </span>
+                                    <span className="ml-1">
+                                      {result.playerResults[id].isCorrect ? '✅' : '❌'}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="text-right">
-                              <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                                {result.scores[id]} pts
+                            {/* Right Column - Score - refined */}
+                            <div className="flex flex-col items-end sm:items-end w-full sm:w-auto pt-2 sm:pt-0 border-t border-slate-700/50 sm:border-none">
+                              <div className="text-right">
+                                <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                                  {result.scores[id]}
+                                </div>
+                                <div className="text-xs sm:text-sm text-slate-400 font-medium tracking-wider">
+                                  POINTS
+                                </div>
                               </div>
-                              <div className="text-sm text-slate-400">
-                                Total Score
+
+                              {/* Score Progress Bar - new addition */}
+                              <div className="mt-2 w-24 sm:w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${index === 0 ? 'bg-gradient-to-r from-amber-400 to-amber-500' :
+                                      index === 1 ? 'bg-gradient-to-r from-slate-300 to-slate-400' :
+                                        index === 2 ? 'bg-gradient-to-r from-amber-600 to-amber-700' :
+                                          'bg-gradient-to-r from-cyan-500/70 to-blue-500/70'
+                                    }`}
+                                  style={{
+                                    width: `${Math.min(100, 100 - (index * 20))}%`
+                                  }}
+                                ></div>
                               </div>
                             </div>
                           </div>
@@ -456,13 +572,27 @@ function App() {
                       ))}
                   </div>
 
-                  {/* Next round indicator */}
-                  <div className="mt-8 pt-6 border-t border-slate-700 text-center">
-                    <div className="text-slate-400 font-semibold animate-pulse">
-                      ⏳ Next challenge starting soon...
+                  {/* Next Round Indicator - refined */}
+                  <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-700/50">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-ping"></div>
+                        <div className="text-slate-400 font-semibold text-sm sm:text-base">
+                          ⏳ Next round in
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-2 rounded-lg font-mono font-bold text-white text-base sm:text-lg border-2 border-slate-600/50 shadow-inner min-w-[60px] text-center">
+                        {newQuestionTime}s
+                      </div>
+                      <div className="text-xs text-slate-500 italic hidden sm:block">
+                        Get ready!
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                {/* Bottom decorative line */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent mt-4"></div>
               </div>
             )}
           </div>
@@ -470,85 +600,9 @@ function App() {
       </main>
 
       {/* Custom Animations */}
-      <style jsx global>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
+      {/* <style jsx global>{`
         
-        @keyframes slide-down {
-          from {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes subtle-glow {
-          0%, 100% {
-            box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
-          }
-          50% {
-            box-shadow: 0 0 30px rgba(6, 182, 212, 0.2);
-          }
-        }
-        
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out;
-        }
-        
-        .animate-slide-down {
-          animation: slide-down 0.3s ease-out;
-        }
-        
-        .animate-subtle-glow {
-          animation: subtle-glow 3s ease-in-out infinite;
-        }
-        
-        /* Smooth scroll behavior */
-        html {
-          scroll-behavior: smooth;
-        }
-        
-        /* Custom scrollbar */
-        .overflow-y-auto::-webkit-scrollbar {
-          width: 8px;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-track {
-          background: rgba(30, 41, 59, 0.3);
-          border-radius: 10px;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-thumb {
-          background: linear-gradient(to bottom, #06b6d4, #3b82f6);
-          border-radius: 10px;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(to bottom, #0891b2, #2563eb);
-        }
-        
-        /* Smooth transitions */
-        * {
-          transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
-        }
-        
-        /* Selection styles */
-        ::selection {
-          background-color: rgba(6, 182, 212, 0.3);
-          color: white;
-        }
-      `}</style>
+      `}</style> */}
     </div>
   );
 }
