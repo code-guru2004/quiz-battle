@@ -93,7 +93,7 @@ function App() {
     socket.on("players", (data) => setPlayers(data));
 
     socket.on("new-question", (data) => {
-      console.log(data);
+      // console.log(data);
 
       setQuestion(data.question);
       setOptions(data.options);
@@ -103,7 +103,7 @@ function App() {
     });
 
     socket.on("result", (data) => {
-      console.log(data);
+      // console.log(data);
 
       setResult(data)
       setNewQuestionTime(data.time || 5);
@@ -354,7 +354,7 @@ function App() {
                 <div className="w-2 h-8 bg-gradient-to-b from-cyan-400 to-blue-400 rounded-full"></div>
                 <span className="text-sm font-semibold text-cyan-300 uppercase tracking-wide">Question</span>
               </div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-8 leading-relaxed">
+              <h2 className="lg:text-xl text-sm  md:text-3xl font-thin font-sans lg:font-semibold text-white mb-8 leading-relaxed">
                 {question}
               </h2>
 
@@ -369,7 +369,7 @@ function App() {
 
                       onClick={() => submitAnswer(opt)}
                       className={`
-                        relative p-6 rounded-xl border-2 transition-all duration-300 
+                        relative p-2 lg:p-6 rounded-xl border-2 transition-all duration-300 
                         transform hover:-translate-y-1 disabled:cursor-not-allowed
                         ${isSelected
                           ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-500/50 shadow-2xl scale-[1.02]'
@@ -381,7 +381,7 @@ function App() {
                     >
                       <div className="flex items-center gap-4">
                         <div className={`
-                          w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg border
+                          w-7 h-7 lg:w-12 lg:h-12 rounded-full flex items-center justify-center font-bold lg:text-lg border
                           ${isSelected || isCorrect
                             ? 'bg-white/20 text-white border-emerald-400'
                             : 'bg-slate-700/50 text-cyan-300 border-slate-600'
@@ -389,7 +389,7 @@ function App() {
                         `}>
                           {String.fromCharCode(65 + i)}
                         </div>
-                        <div className="flex-1 text-left font-medium text-lg">
+                        <div className="flex-1 text-left font-medium lg:text-lg">
                           {opt}
                         </div>
                         {isSelected && (
