@@ -21,6 +21,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [players, setPlayers] = useState({});
   const [copied, setCopied] = useState(false);
+  const [subject, setSubject] = useState("");
 
   const resultRef = useRef(null);
   const mainContentRef = useRef(null);
@@ -48,7 +49,7 @@ function App() {
     if (!username) return alert("Enter your name");
     const newRoom = uuidv4().slice(0, 8);
     setRoomCode(newRoom);
-    socket.emit("join-room", { roomCode: newRoom, username });
+    socket.emit("join-room", { roomCode: newRoom, username, subject  });
     setJoined(true);
   };
 
@@ -208,7 +209,31 @@ function App() {
                     className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500/50 outline-none transition-all duration-300 text-white placeholder-slate-400"
                   />
                 </div>
+                {/* select the subject--dropdown btn */}
+                <div>
+  <label className="block text-sm font-semibold text-slate-300 mb-2">
+    Select Subject
+  </label>
 
+  <select
+    value={subject}
+    onChange={(e) => setSubject(e.target.value)}
+    className="w-full px-4 py-3 bg-emerald-600 border-2 border-slate-600 rounded-xl 
+    focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500/50 
+    outline-none transition-all duration-300 text-white"
+    placeholder="Choose a subject"
+  >
+    <option value="" disabled  className="text-slate-100">
+      Choose a subject
+    </option>
+    <option value="aptitude">Aptitude</option>
+    <option value="profit_loss">🧠 Profit-loss</option>
+    <option value="reasoning">Reasoning</option>
+    <option value="english">English</option>
+    <option value="gk">General Knowledge</option>
+    <option value="programming">Programming</option>
+  </select>
+</div>
                 <button
                   onClick={createRoom}
                   disabled={!username}
